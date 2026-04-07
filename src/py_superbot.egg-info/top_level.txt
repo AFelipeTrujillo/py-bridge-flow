@@ -1,0 +1,5 @@
+Application
+Domain
+Infrastructure
+Shared
+__init__

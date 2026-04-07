@@ -1,0 +1,94 @@
+import asyncio
+import logging
+import os
+from dotenv import load_dotenv
+
+from telegram.ext import ApplicationBuilder, ChatMemberHandler, CallbackQueryHandler
+from telegram.ext import ChatJoinRequestHandler
+from motor.motor_asyncio import AsyncIOMotorClient
+
+# Persistence
+from src.Infrastructure.Persistence.MongoGroupRepository import MongoGroupRepository
+from src.Infrastructure.Persistence.MongoClient import get_database
+from src.Infrastructure.Config.Settings import settings
+from src.Infrastructure.Delivery.Telegram.Jobs.BroadcastJob import BroadcastJob
+from src.Infrastructure.Delivery.Telegram.Handlers.MemberHandler import MemberHandler
+
+# Use Cases
+from src.Application.UseCase.RegisterGroup import RegisterGroup
+from src.Application.UseCase.DailyBroadcast import DailyBroadcast
+
+# Handlers
+from src.Infrastructure.Delivery.Telegram.Handlers.RegistrationHandler import RegistrationHandler
+from src.Infrastructure.Delivery.Telegram.Handlers.CallbackHandler import CallbackHandler
+
+# Configure Logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+load_dotenv()  # Load environment variables from .env
+
+
+async def main():
+    # 1. Database Initialization
+    client = AsyncIOMotorClient(settings.MONGO_URI)
+    db = get_database(client, settings.DB_NAME)
+
+    # 2. Dependency Injection
+    group_repo = MongoGroupRepository(db)
+    member_logic = MemberHandler(group_repo)
+
+    # Instantiate Use Cases
+    register_use_case = RegisterGroup(group_repo)
+    broadcast_use_case = DailyBroadcast(group_repo)
+
+    # Instantiate Handlers (Delivery Layer)
+    reg_handler_logic = RegistrationHandler(register_use_case)
+    callback_logic = CallbackHandler(register_use_case)
+    broadcast_job_logic = BroadcastJob(broadcast_use_case)
+
+    # 3. Bot Initialization
+    application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
+    application.add_handler(ChatJoinRequestHandler(member_logic.on_join_request))
+
+    # 4. Register Telegram Handlers
+    # Handle when bot is added to a group
+    application.add_handler(ChatMemberHandler(
+        reg_handler_logic.on_bot_added_to_group,
+        ChatMemberHandler.MY_CHAT_MEMBER
+    ))
+
+    # 5. Initialize the Scheduler
+    if application.job_queue:
+        broadcast_job_logic.schedule(
+            application.job_queue,
+            settings.BROADCAST_TIME_UTC
+        )
+    else:
+        logger.warning("JobQueue is not available. Daily broadcasts will not run.")
+
+    # Handle Language selection buttons
+    application.add_handler(CallbackQueryHandler(
+        callback_logic.handle_language_selection,
+        pattern=r"^lang_"
+    ))
+
+    # Handle Approval selection buttons
+    application.add_handler(CallbackQueryHandler(
+        callback_logic.handle_approval_selection,
+        pattern=r"^appr_"
+    ))
+
+    # 6. Start the Bot
+    logger.info("Bot started and listening for updates...")
+    await application.run_polling()
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot stopped by user.")
