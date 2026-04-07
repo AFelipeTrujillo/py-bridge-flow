@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from telegram.ext import ApplicationBuilder, ChatMemberHandler, CallbackQueryHandler
-from telegram.ext import ChatJoinRequestHandler
+from telegram.ext import ChatJoinRequestHandler, CommandHandler
 from motor.motor_asyncio import AsyncIOMotorClient
 
 # Persistence
@@ -12,15 +12,19 @@ from src.Infrastructure.Persistence.MongoGroupRepository import MongoGroupReposi
 from src.Infrastructure.Persistence.MongoClient import get_database
 from src.Infrastructure.Config.Settings import settings
 from src.Infrastructure.Delivery.Telegram.Jobs.BroadcastJob import BroadcastJob
-from src.Infrastructure.Delivery.Telegram.Handlers.MemberHandler import MemberHandler
 
 # Use Cases
 from src.Application.UseCase.RegisterGroup import RegisterGroup
 from src.Application.UseCase.DailyBroadcast import DailyBroadcast
+from src.Application.UseCase.GetSystemStatus import GetSystemStatus
+from src.Application.UseCase.GetWelcomeMessage import GetWelcomeMessage
 
 # Handlers
 from src.Infrastructure.Delivery.Telegram.Handlers.RegistrationHandler import RegistrationHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.CallbackHandler import CallbackHandler
+from src.Infrastructure.Delivery.Telegram.Handlers.MemberHandler import MemberHandler
+from src.Infrastructure.Delivery.Telegram.Handlers.StatusHandler import StatusHandler
+from src.Infrastructure.Delivery.Telegram.Handlers.StartHandler import StartHandler
 
 # Configure Logging
 logging.basicConfig(
@@ -34,25 +38,31 @@ load_dotenv()  # Load environment variables from .env
 
 async def main():
     # 1. Database Initialization
-    client = AsyncIOMotorClient(settings.MONGO_URI)
-    db = get_database(client, settings.DB_NAME)
+    client  = AsyncIOMotorClient(settings.MONGO_URI)
+    db      = get_database(client, settings.DB_NAME)
 
     # 2. Dependency Injection
-    group_repo = MongoGroupRepository(db)
-    member_logic = MemberHandler(group_repo)
+    group_repo      = MongoGroupRepository(db)
+    member_logic    = MemberHandler(group_repo)
 
     # Instantiate Use Cases
-    register_use_case = RegisterGroup(group_repo)
-    broadcast_use_case = DailyBroadcast(group_repo)
+    register_use_case   = RegisterGroup(group_repo)
+    broadcast_use_case  = DailyBroadcast(group_repo)
+    status_use_case     = GetSystemStatus(group_repo)
+    welcome_use_case    = GetWelcomeMessage()
 
     # Instantiate Handlers (Delivery Layer)
-    reg_handler_logic = RegistrationHandler(register_use_case)
-    callback_logic = CallbackHandler(register_use_case)
+    reg_handler_logic   = RegistrationHandler(register_use_case)
+    callback_logic      = CallbackHandler(register_use_case)
     broadcast_job_logic = BroadcastJob(broadcast_use_case)
+    status_logic        = StatusHandler(status_use_case)
+    start_logic         = StartHandler(welcome_use_case)
 
     # 3. Bot Initialization
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
     application.add_handler(ChatJoinRequestHandler(member_logic.on_join_request))
+    application.add_handler(CommandHandler("status", status_logic.handle))
+    application.add_handler(CommandHandler("start", start_logic.handle))
 
     # 4. Register Telegram Handlers
     # Handle when bot is added to a group
