@@ -1,3 +1,4 @@
+from typing import Optional
 from src.Domain.Entity.User import User
 from src.Domain.Repository.UserRepository import UserRepository
 from motor.motor_asyncio import AsyncIOMotorDatabase
