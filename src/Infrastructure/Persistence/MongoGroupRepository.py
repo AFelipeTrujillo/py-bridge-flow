@@ -67,6 +67,21 @@ class MongoGroupRepository(GroupRepository):
             }
         )
 
+    async def find_by_owner(self, owner_id: int) -> list[Group]:
+        cursor = self.collection.find({"owner_id": owner_id})
+        groups = []
+        async for doc in cursor:
+            groups.append(Group(
+                chat_id=doc["chat_id"],
+                title=doc["title"],
+                owner_id=doc["owner_id"],
+                invite_link=doc.get("invite_link"),
+                is_active=doc.get("is_active", True),
+                language=doc.get("language", "en"),
+                settings=LinkSettings(**doc["settings"]) if "settings" in doc else LinkSettings()
+            ))
+        return groups
+
     def _map_to_entity(self, doc: dict) -> Group:
         """Internal helper to convert a Mongo document to a Domain Entity."""
         settings_doc = doc.get("settings", {})

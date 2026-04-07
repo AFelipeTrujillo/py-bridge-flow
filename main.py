@@ -11,6 +11,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from src.Application.UseCase.UpdateUserPreference import UpdateUserPreference
 # Persistence
 from src.Infrastructure.Persistence.MongoGroupRepository import MongoGroupRepository
+from src.Infrastructure.Persistence.MongoUserRepository import MongoUserRepository
 from src.Infrastructure.Persistence.MongoClient import get_database
 from src.Infrastructure.Config.Settings import settings
 from src.Infrastructure.Delivery.Telegram.Jobs.BroadcastJob import BroadcastJob
@@ -27,7 +28,9 @@ from src.Infrastructure.Delivery.Telegram.Handlers.CallbackHandler import Callba
 from src.Infrastructure.Delivery.Telegram.Handlers.MemberHandler import MemberHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.StatusHandler import StatusHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.StartHandler import StartHandler
-from src.Infrastructure.Persistence.MongoUserRepository import MongoUserRepository
+from src.Infrastructure.Delivery.Telegram.Handlers.CheckStatusHandler import CheckStatusHandler
+
+
 
 # Configure Logging
 logging.basicConfig(
@@ -62,13 +65,20 @@ def main():
     broadcast_job_logic = BroadcastJob(broadcast_use_case)
     status_logic        = StatusHandler(status_use_case)
     start_logic         = StartHandler(welcome_use_case, update_user_use_case)
+    check_status_logic  = CheckStatusHandler(group_repo)
 
     # 3. Bot Initialization
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
+    application.add_handler(ChatMemberHandler(
+        reg_handler_logic.on_bot_added_to_group,
+        chat_member_types=ChatMemberHandler.MY_CHAT_MEMBER
+    ))
     application.add_handler(CallbackQueryHandler(start_logic.handle_callback, pattern=r"^setlang_"))
     application.add_handler(ChatJoinRequestHandler(member_logic.on_join_request))
     application.add_handler(CommandHandler("status", status_logic.handle))
     application.add_handler(CommandHandler("start", start_logic.handle))
+    application.add_handler(CommandHandler("check", check_status_logic.handle))
+    application.add_handler(CallbackQueryHandler(check_status_logic.handle, pattern=r"^check_admin_status$"))
 
     # 4. Register Telegram Handlers
     # Handle when bot is added to a group

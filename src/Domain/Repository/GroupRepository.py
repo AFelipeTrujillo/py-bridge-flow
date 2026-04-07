@@ -20,3 +20,7 @@ class GroupRepository(ABC):
     @abstractmethod
     async def update_stats(self, chat_id: int, member_count: int, joins: int) -> None:
         pass
+
+    @abstractmethod
+    async def find_by_owner(self, owner_id: int) -> list[Group]:
+        pass

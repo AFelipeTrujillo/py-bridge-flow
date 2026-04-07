@@ -1,59 +1,100 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ChatMemberHandler
-from src.Domain.Repository.UserRepository import UserRepository
-from src.Application.UseCase.RegisterGroup import RegisterGroup
-from src.Application.DTO.RegisterGroupRequest import RegisterGroupRequest
+import logging
+from telegram import Update, ChatMember, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+
+logger = logging.getLogger(__name__)
 
 
 class RegistrationHandler:
-    def __init__(self, register_group_use_case: RegisterGroup, user_repo: UserRepository):
-        self.use_case = register_group_use_case
+    def __init__(self, register_group_use_case, user_repo):
+        self.register_group_use_case = register_group_use_case
         self.user_repo = user_repo
 
     async def on_bot_added_to_group(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Detecta cuando el bot es añadido o cambia de estatus en un chat/canal."""
         result = update.my_chat_member
-        if result.new_chat_member.status == "administrator":
-            chat = result.chat
-            user_who_added = update.effective_user
+        chat = result.chat
+        new_status = result.new_chat_member
+        user_who_added = result.from_user
 
-            # 1. Recuperamos el idioma del usuario desde el repositorio
-            existing_user = await self.user_repo.find_by_id(user_who_added.id)
-            user_lang = existing_user.language if existing_user else "en"
+        # 1. Filtrar solo cuando el bot sea nombrado Administrador
+        if new_status.status != ChatMember.ADMINISTRATOR:
+            return
 
-            # 2. Definimos los mensajes según el idioma
-            if user_lang == "es":
-                msg_intro = f"Configurando **{chat.title}**... ⚙️"
-                msg_question = "¿Los nuevos miembros requieren aprobación de un administrador?"
-                btn_yes = "Sí"
-                btn_no = "No"
-            else:
-                msg_intro = f"Configuring **{chat.title}**... ⚙️"
-                msg_question = "Should new members require admin approval?"
-                btn_yes = "Yes"
-                btn_no = "No"
+        # 2. Recuperar idioma del usuario (dueño)
+        user_lang = await self._get_user_lang(user_who_added.id)
 
-            # 3. Guardamos los datos temporales en context.user_data
-            context.user_data[f"reg_{chat.id}"] = {
-                "chat_id": chat.id,
-                "title": chat.title,
-                "owner_id": user_who_added.id,
-                "language": user_lang,
-                "member_count": await chat.get_member_count()
-            }
+        # 3. Verificación CRÍTICA de permisos (funciona en Grupos y Canales)
+        # Usamos getattr por seguridad si el objeto no tiene el atributo
+        can_invite = getattr(new_status, "can_invite_users", False)
 
-            # 4. Creamos el teclado con los textos traducidos
-            keyboard = [
-                [
-                    InlineKeyboardButton(btn_yes, callback_data=f"appr_yes_{chat.id}"),
-                    InlineKeyboardButton(btn_no, callback_data=f"appr_no_{chat.id}")
-                ]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            # 5. Enviamos el mensaje al ADMIN (en privado)
+        if not can_invite:
+            error_text = (
+                f"⚠️ **¡Casi listo en {chat.title}!**\n\n"
+                "Me has hecho admin, pero me falta el permiso de **'Invitar usuarios vía enlace'** (Invite Users via Link).\n"
+                "Por favor, actívalo y pulsa el botón de abajo."
+                if user_lang == "es" else
+                f"⚠️ **Almost ready in {chat.title}!**\n\n"
+                "I'm an admin, but I need the **'Invite Users via Link'** permission.\n"
+                "Please enable it and tap the button below."
+            )
+            keyboard = [[InlineKeyboardButton("Reintentar / Retry 🔄", callback_data="check_admin_status")]]
             await context.bot.send_message(
                 chat_id=user_who_added.id,
-                text=f"{msg_intro}\n\n{msg_question}",
-                reply_markup=reply_markup,
+                text=error_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
+            return
+        else:
+            try:
+                link_obj = await chat.create_invite_link(name="Broadcast Bot Link")
+                invite_link = link_obj.invite_link
+            except Exception as e:
+                logger.warning(f"No se pudo exportar el link, intentando crear uno: {e}")
+                return
+
+        # 4. Almacenar datos temporales para el paso final (Aprobación)
+        # Guardamos el tipo de chat (channel/group/supergroup)
+        context.user_data[f"reg_{chat.id}"] = {
+            "chat_id": chat.id,
+            "title": chat.title,
+            "owner_id": user_who_added.id,
+            "language": user_lang,
+            "chat_type": chat.type,
+            "invite_link": invite_link,
+            "member_count": await chat.get_member_count() if chat.type != "channel" else 0
+        }
+
+        # 5. Configuración de idioma para la pregunta de aprobación
+        if user_lang == "es":
+            msg = f"✅ ¡Detectado correctamente en **{chat.title}**!\n\n¿Los nuevos miembros requieren aprobación de un administrador?"
+            btns = [
+                InlineKeyboardButton("Sí", callback_data=f"appr_yes_{chat.id}"),
+                InlineKeyboardButton("No", callback_data=f"appr_no_{chat.id}")
+            ]
+        else:
+            msg = f"✅ Successfully detected in **{chat.title}**!\n\nShould new members require admin approval?"
+            btns = [
+                InlineKeyboardButton("Yes", callback_data=f"appr_yes_{chat.id}"),
+                InlineKeyboardButton("No", callback_data=f"appr_no_{chat.id}")
+            ]
+
+        await context.bot.send_message(
+            chat_id=user_who_added.id,
+            text=msg,
+            reply_markup=InlineKeyboardMarkup([btns]),
+            parse_mode="Markdown"
+        )
+
+        logger.info(f"Bot set as admin in {chat.type} {chat.title} ({chat.id}) by {user_who_added.id}")
+
+    async def _get_user_lang(self, user_id: int) -> str:
+        """Helper para obtener el idioma del usuario desde el repositorio."""
+        try:
+            user = await self.user_repo.find_by_id(user_id)
+            if user:
+                return user.language
+        except Exception as e:
+            logger.error(f"Error fetching user lang: {e}")
+        return "en"
