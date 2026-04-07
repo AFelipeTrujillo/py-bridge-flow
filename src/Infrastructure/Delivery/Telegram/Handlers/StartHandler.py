@@ -20,14 +20,11 @@ class StartHandler:
         """Maneja el comando /start inicial."""
         user = update.effective_user
 
-        # Solo respondemos en chats privados
         if update.effective_chat.type != "private":
             return
 
-        # Obtenemos el mensaje bilingüe inicial del Caso de Uso
         text = await self.welcome_use_case.execute(user.first_name)
 
-        # Creamos los botones de selección de idioma
         keyboard = [
             [
                 InlineKeyboardButton("English 🇺🇸", callback_data="setlang_en"),
@@ -46,11 +43,10 @@ class StartHandler:
         """Maneja la pulsación de los botones de idioma (setlang_)."""
         query = update.callback_query
         user = update.effective_user
+        bot_username = context.bot.username
 
-        # Extraemos el idioma del callback_data (ej: setlang_es -> es)
         _, lang = query.data.split("_")
 
-        # Ejecutamos el Caso de Uso para guardar/actualizar al usuario en la DB
         await self.update_user_use_case.execute(
             user_id=user.id,
             first_name=user.first_name,
@@ -58,12 +54,18 @@ class StartHandler:
             username=user.username
         )
 
-        # Confirmamos la acción al usuario
-        confirm_text = (
-            "✅ **Language set to English!**\n\nYou can now add me to your groups."
-            if lang == "en" else
-            "✅ **¡Idioma configurado en Español!**\n\nYa puedes añadirme a tus grupos."
-        )
+        if lang == "en":
+            confirm_text = (
+                f"✅ **Language set to English!**\n\n"
+                f"Now, go to your group and add me as an admin by searching for:\n\n"
+                f"`@{bot_username}`"
+            )
+        else:
+            confirm_text = (
+                f"✅ **¡Idioma configurado en Español!**\n\n"
+                f"Ahora, ve a tu grupo y añádeme como administrador buscando mi usuario:\n\n"
+                f"`@{bot_username}`"
+            )
 
         await query.answer("Success! / ¡Logrado!")
         await query.edit_message_text(text=confirm_text, parse_mode="Markdown")

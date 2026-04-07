@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import certifi
 from dotenv import load_dotenv
 
 from telegram.ext import ApplicationBuilder, ChatMemberHandler, CallbackQueryHandler
@@ -40,7 +41,7 @@ load_dotenv()  # Load environment variables from .env
 
 def main():
     # 1. Database Initialization
-    client  = AsyncIOMotorClient(settings.MONGO_URI)
+    client  = AsyncIOMotorClient(settings.MONGO_URI, tlsCAFile=certifi.where())
     db      = get_database(client, settings.DB_NAME)
 
     # 2. Dependency Injection
@@ -64,6 +65,7 @@ def main():
 
     # 3. Bot Initialization
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
+    application.add_handler(CallbackQueryHandler(start_logic.handle_callback, pattern=r"^setlang_"))
     application.add_handler(ChatJoinRequestHandler(member_logic.on_join_request))
     application.add_handler(CommandHandler("status", status_logic.handle))
     application.add_handler(CommandHandler("start", start_logic.handle))

@@ -1,7 +1,7 @@
 class GetWelcomeMessage:
     """Logic to generate the welcome text in multiple languages."""
 
-    def execute(self, user_full_name: str, lang: str = None) -> str:
+    async def execute(self, user_full_name: str, lang: str = None) -> str:
         messages = {
             "en": (
                 f"Hello, {user_full_name}! 👋\n\n"
