@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from src.Domain.ValueObject.LinkSettings import LinkSettings
 
 @dataclass
@@ -14,7 +14,9 @@ class Group:
     member_count: int = 0
     joined_via_bot_count: int = 0
     is_active: bool = True
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)  # Use timezone-aware UTC
+    )
 
     def update_metrics(self, current_total: int):
         """Updates the total member count of the group."""

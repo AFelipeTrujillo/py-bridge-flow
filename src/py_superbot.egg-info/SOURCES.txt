@@ -23,6 +23,7 @@ src/Infrastructure/Delivery/Console/__init__.py
 src/Infrastructure/Delivery/Http/__init__.py
 src/Infrastructure/Delivery/Telegram/__init__.py
 src/Infrastructure/Delivery/Telegram/Handlers/CallbackHandler.py
+src/Infrastructure/Delivery/Telegram/Handlers/MemberHandler.py
 src/Infrastructure/Delivery/Telegram/Handlers/RegistrationHandler.py
 src/Infrastructure/Delivery/Telegram/Handlers/__init__.py
 src/Infrastructure/Delivery/Telegram/Jobs/BroadcastJob.py
