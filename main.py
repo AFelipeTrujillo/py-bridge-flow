@@ -7,6 +7,7 @@ from telegram.ext import ApplicationBuilder, ChatMemberHandler, CallbackQueryHan
 from telegram.ext import ChatJoinRequestHandler, CommandHandler
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from src.Application.UseCase.UpdateUserPreference import UpdateUserPreference
 # Persistence
 from src.Infrastructure.Persistence.MongoGroupRepository import MongoGroupRepository
 from src.Infrastructure.Persistence.MongoClient import get_database
@@ -25,6 +26,7 @@ from src.Infrastructure.Delivery.Telegram.Handlers.CallbackHandler import Callba
 from src.Infrastructure.Delivery.Telegram.Handlers.MemberHandler import MemberHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.StatusHandler import StatusHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.StartHandler import StartHandler
+from src.Infrastructure.Persistence.MongoUserRepository import MongoUserRepository
 
 # Configure Logging
 logging.basicConfig(
@@ -36,27 +38,29 @@ logger = logging.getLogger(__name__)
 load_dotenv()  # Load environment variables from .env
 
 
-async def main():
+def main():
     # 1. Database Initialization
     client  = AsyncIOMotorClient(settings.MONGO_URI)
     db      = get_database(client, settings.DB_NAME)
 
     # 2. Dependency Injection
-    group_repo      = MongoGroupRepository(db)
-    member_logic    = MemberHandler(group_repo)
+    group_repo  = MongoGroupRepository(db)
+    user_repo   = MongoUserRepository(db)
 
     # Instantiate Use Cases
-    register_use_case   = RegisterGroup(group_repo)
-    broadcast_use_case  = DailyBroadcast(group_repo)
-    status_use_case     = GetSystemStatus(group_repo)
-    welcome_use_case    = GetWelcomeMessage()
+    register_use_case       = RegisterGroup(group_repo)
+    broadcast_use_case      = DailyBroadcast(group_repo)
+    status_use_case         = GetSystemStatus(group_repo)
+    welcome_use_case        = GetWelcomeMessage()
+    update_user_use_case    = UpdateUserPreference(user_repo)
 
     # Instantiate Handlers (Delivery Layer)
-    reg_handler_logic   = RegistrationHandler(register_use_case)
+    member_logic        = MemberHandler(group_repo)
+    reg_handler_logic   = RegistrationHandler(register_use_case, user_repo)
     callback_logic      = CallbackHandler(register_use_case)
     broadcast_job_logic = BroadcastJob(broadcast_use_case)
     status_logic        = StatusHandler(status_use_case)
-    start_logic         = StartHandler(welcome_use_case)
+    start_logic         = StartHandler(welcome_use_case, update_user_use_case)
 
     # 3. Bot Initialization
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
@@ -94,11 +98,11 @@ async def main():
 
     # 6. Start the Bot
     logger.info("Bot started and listening for updates...")
-    await application.run_polling()
+    application.run_polling()
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         logger.info("Bot stopped by user.")
