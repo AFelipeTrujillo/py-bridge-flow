@@ -24,3 +24,11 @@ class GroupRepository(ABC):
     @abstractmethod
     async def find_by_owner(self, owner_id: int) -> list[Group]:
         pass
+
+    @abstractmethod
+    async def update_status(self, chat_id: int, new_status: str):
+        pass
+
+    @abstractmethod
+    async def find_all_approved(self) -> list[Group]:
+        pass

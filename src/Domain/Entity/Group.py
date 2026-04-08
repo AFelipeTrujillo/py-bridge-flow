@@ -11,6 +11,7 @@ class Group:
     invite_link: str
     settings: LinkSettings
     language: str  # 'en' for English, 'es' for Spanish
+    chat_type: str
     member_count: int = 0
     joined_via_bot_count: int = 0
     is_active: bool = True,

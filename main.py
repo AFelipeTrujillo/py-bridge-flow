@@ -79,6 +79,7 @@ def main():
     application.add_handler(CommandHandler("start", start_logic.handle))
     application.add_handler(CommandHandler("check", check_status_logic.handle))
     application.add_handler(CallbackQueryHandler(check_status_logic.handle, pattern=r"^check_admin_status$"))
+    application.add_handler(CallbackQueryHandler(callback_logic.handle_explore_groups, pattern=r"^explore_groups$"))
 
     # 4. Register Telegram Handlers
     # Handle when bot is added to a group
@@ -111,6 +112,11 @@ def main():
     application.add_handler(CallbackQueryHandler(
         callback_logic.handle_admin_moderation,
         pattern=r"^admin_"
+    ))
+
+    application.add_handler(CallbackQueryHandler(
+        callback_logic.handle,
+        pattern=r"^main_"
     ))
 
     """

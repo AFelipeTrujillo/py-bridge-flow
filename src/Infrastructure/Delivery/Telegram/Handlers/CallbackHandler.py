@@ -3,11 +3,13 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from src.Application.UseCase.RegisterGroup import RegisterGroup
 from src.Application.DTO.RegisterGroupRequest import RegisterGroupRequest
+from src.Domain.Repository.GroupRepository import GroupRepository
+from src.Domain.Repository.UserRepository import UserRepository
 
 logger = logging.getLogger(__name__)
 
 class CallbackHandler:
-    def __init__(self, register_group_use_case: RegisterGroup, user_repo, group_repo, super_admin_id: int):
+    def __init__(self, register_group_use_case: RegisterGroup, user_repo: UserRepository, group_repo: GroupRepository, super_admin_id: int):
         self.register_group_use_case = register_group_use_case
         self.user_repo = user_repo
         self.super_admin_id = super_admin_id
@@ -36,14 +38,55 @@ class CallbackHandler:
         )
 
     async def handle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Punto de entrada principal para todos los callbacks."""
         query = update.callback_query
         data = query.data
+
+        if data == "main_explore":
+            await self.handle_explore_groups(update, context)
+
+        elif data == "main_register":
+            await self.handle_show_registration_instructions(update, context)
+
+        elif data == "main_menu":
+            await self._show_main_menu(update, context)
 
         if data.startswith("appr_"):
             await self.handle_user_approval_selection(update, context)
         elif data.startswith("admin_"):
             await self.handle_admin_moderation(update, context)
+
+    async def handle_show_registration_instructions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        lang = context.user_data.get("lang", "en")
+
+        bot_username = f"@{context.bot.username}"
+
+        if lang == "es":
+            text = (
+                "🚀 **Cómo registrar tu grupo:**\n\n"
+                f"1. Copia mi usuario: `{bot_username}` (toca para copiar).\n"
+                "2. Añádeme como **Administrador** en tu grupo o canal.\n"
+                "3. Asegúrate de darme el permiso de **'Invitar usuarios vía enlace'**.\n"
+                "4. Una vez hecho, detectaré el grupo automáticamente y te enviaré aquí los pasos finales."
+            )
+            back_btn_text = "⬅️ Volver"
+        else:
+            text = (
+                "🚀 **How to register your group:**\n\n"
+                f"1. Copy my username: `{bot_username}` (tap to copy).\n"
+                "2. Add me as an **Admin** in your group or channel.\n"
+                "3. Make sure to grant the **'Invite users via link'** permission.\n"
+                "4. Once done, I'll detect the group and send you the final steps here."
+            )
+            back_btn_text = "⬅️ Back"
+
+        keyboard = [[InlineKeyboardButton(back_btn_text, callback_data="main_menu")]]
+
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
 
     async def handle_user_approval_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """El usuario finaliza la configuración de su grupo."""
@@ -168,3 +211,67 @@ class CallbackHandler:
             await query.edit_message_text(
                 text=f"❌ Error procesando moderación: {str(e)}"
             )
+
+    async def handle_explore_groups(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+
+        lang = context.user_data.get("lang", "en")
+
+        approved_groups = await self.group_repo.find_all_approved()
+
+        if lang == "es":
+            empty_text = "Por ahora no hay grupos aprobados en el directorio. ¡Vuelve pronto!"
+            header_text = "**Directorio de Grupos Aprobados**\n\n"
+            join_text = "Unirse aquí"
+            back_btn_text = "⬅️ Volver"
+        else:
+            empty_text = "There are no approved groups in the directory yet. Check back soon!"
+            header_text = "📂 **Approved Groups Directory**\n\n"
+            join_text = "Join here"
+            back_btn_text = "⬅️ Back"
+
+        keyboard = [[InlineKeyboardButton(back_btn_text, callback_data="main_menu")]]
+
+        if not approved_groups:
+            await query.edit_message_text(
+                text=empty_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+            return
+
+        report = header_text
+        for g in approved_groups:
+            report += f"🔹 **{g.title}**\n[{join_text}]({g.invite_link})\n\n"
+
+        await query.edit_message_text(
+            text=report,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+
+    async def _show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        # Recuperamos el idioma guardado en el context
+        lang = context.user_data.get("lang", "en")
+
+        if lang == "es":
+            text = "👋 **Menú Principal**\n\n¿Qué quieres hacer hoy?"
+            btns = [
+                [InlineKeyboardButton("🔍 Explorar Grupos", callback_data="main_explore")],
+                [InlineKeyboardButton("🚀 Registrar mi Grupo", callback_data="main_register")]
+            ]
+        else:
+            text = "👋 **Main Menu**\n\nWhat would you like to do today?"
+            btns = [
+                [InlineKeyboardButton("🔍 Explore Groups", callback_data="main_explore")],
+                [InlineKeyboardButton("🚀 Register my Group", callback_data="main_register")]
+            ]
+
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(btns),
+            parse_mode="Markdown"
+        )

@@ -41,37 +41,66 @@ class StartHandler:
 
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
-        user = update.effective_user
-        bot_username = context.bot.username
-        _, lang = query.data.split("_")
+        await query.answer()
+
+        lang = query.data.split("_")[1]
+        user_id = update.effective_user.id
+        telegram_user = update.effective_user
+        first_name = telegram_user.first_name
+        username = telegram_user.username
 
         await self.update_user_use_case.execute(
-            user_id=user.id, first_name=user.first_name, lang=lang, username=user.username
+            user_id = user_id,
+            first_name = first_name,
+            lang = lang,
+            username = username
         )
 
-        if lang == "es":
-            confirm_text = (
-                f"✅ **¡Idioma configurado!**\n\n"
-                f"Sigue estos pasos para activar el bot en tu grupo:\n\n"
-                f"1️⃣ Toca este nombre para copiarlo: `@{bot_username}`\n"
-                f"2️⃣ Ve a tu grupo > **Añadir miembros** > Pega el nombre.\n"
-                f"3️⃣ Una vez dentro, entra en el perfil del bot y selecciona **'Hacer administrador'**.\n"
-                f"4️⃣ Asegúrate de activar el permiso: **'Invitar usuarios vía enlace'**."
-            )
-            btn_verify = "Comprobar estado 🔄"
+        context.user_data["lang"] = lang
+
+        await self._show_main_menu(query, lang)
+
+
+    async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        user_lang = context.user_data.get("lang", "en")  # O recuperado de DB
+
+        if user_lang == "es":
+            text = "👋 **¡Bienvenido a la Red!**\n\n¿Qué te gustaría hacer hoy?"
+            buttons = [
+                [InlineKeyboardButton("🔍 Explorar Grupos", callback_data="explore_groups")],
+                [InlineKeyboardButton("🚀 Registrar mi Grupo/Canal", callback_data="start_registration")]
+            ]
         else:
-            confirm_text = (
-                f"✅ **Language set!**\n\n"
-                f"Follow these steps to activate the bot:\n\n"
-                f"1️⃣ Tap to copy: `@{bot_username}`\n"
-                f"2️⃣ Go to your group > **Add Members** > Paste the name.\n"
-                f"3️⃣ Tap the bot's profile and select **'Make Admin'**.\n"
-                f"4️⃣ Enable the permission: **'Invite Users via Link'**."
-            )
-            btn_verify = "Check status 🔄"
+            text = "👋 **Welcome to the Network!**\n\nWhat would you like to do today?"
+            buttons = [
+                [InlineKeyboardButton("🔍 Explore Groups", callback_data="explore_groups")],
+                [InlineKeyboardButton("🚀 Register my Group/Channel", callback_data="start_registration")]
+            ]
 
-        keyboard = [[InlineKeyboardButton(btn_verify, callback_data="check_admin_status")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="Markdown"
+        )
 
-        await query.answer()
-        await query.edit_message_text(text=confirm_text, reply_markup=reply_markup, parse_mode="Markdown")
+    async def _show_main_menu(self, query, lang: str):
+        if lang == "es":
+            text = "👋 **Menú Principal**\n\n¿Qué deseas hacer?"
+            btn_explore = "🔍 Explorar Grupos"
+            btn_register = "🚀 Registrar mi Grupo"
+        else:
+            text = "👋 **Main Menu**\n\nWhat would you like to do?"
+            btn_explore = "🔍 Explore Groups"
+            btn_register = "🚀 Register my Group"
+
+        keyboard = [
+            [InlineKeyboardButton(btn_explore, callback_data="main_explore")],
+            [InlineKeyboardButton(btn_register, callback_data="main_register")]
+        ]
+
+        await query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )

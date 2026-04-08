@@ -90,6 +90,29 @@ class MongoGroupRepository(GroupRepository):
             {"$set": {"status": new_status}}
         )
 
+    async def find_all_approved(self) -> list[Group]:
+
+        cursor = self.collection.find({
+            "status": "approved",
+            "is_active": True
+        })
+
+        groups = []
+        async for doc in cursor:
+            groups.append(Group(
+                chat_id=doc["chat_id"],
+                title=doc["title"],
+                owner_id=doc["owner_id"],
+                invite_link=doc["invite_link"],
+                language=doc.get("language", "en"),
+                chat_type=doc.get("chat_type", "group"),
+                member_count=doc.get("member_count", 0),
+                is_active=doc.get("is_active", True),
+                status=doc.get("status", "pending")
+            ))
+
+        return groups
+
     def _map_to_entity(self, doc: dict) -> Group:
         """Internal helper to convert a Mongo document to a Domain Entity."""
         settings_doc = doc.get("settings", {})
