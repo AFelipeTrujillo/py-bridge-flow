@@ -243,7 +243,7 @@ class CallbackHandler:
 
         report = header_text
         for g in approved_groups:
-            report += f"🔹 **{g.title}**\n[{join_text}]({g.invite_link})\n\n"
+            report += f"🔹 **{g.title}** [{join_text}]({g.invite_link})\n\n"
 
         await query.edit_message_text(
             text=report,

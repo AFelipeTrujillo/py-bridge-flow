@@ -30,6 +30,7 @@ class RegisterGroup:
             title=request.title,
             owner_id=request.owner_id,
             invite_link=request.invite_link,
+            chat_type=request.chat_type,
             settings=settings,
             language=request.language,  # Persisting the language choice
             member_count=request.member_count

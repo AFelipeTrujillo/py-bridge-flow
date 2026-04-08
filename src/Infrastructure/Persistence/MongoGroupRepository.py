@@ -24,6 +24,7 @@ class MongoGroupRepository(GroupRepository):
             "invite_link": group.invite_link,
             "language": group.language,
             "member_count": group.member_count,
+            "chat_type": group.chat_type,
             "joined_via_bot_count": group.joined_via_bot_count,
             "is_active": bool(group.is_active),
             "status": group.status,
@@ -91,7 +92,6 @@ class MongoGroupRepository(GroupRepository):
         )
 
     async def find_all_approved(self) -> list[Group]:
-
         cursor = self.collection.find({
             "status": "approved",
             "is_active": True
@@ -99,13 +99,19 @@ class MongoGroupRepository(GroupRepository):
 
         groups = []
         async for doc in cursor:
+            db_settings = doc.get("settings", {})
+            settings = LinkSettings(
+                require_approval=db_settings.get("require_approval", False)
+            )
+
             groups.append(Group(
                 chat_id=doc["chat_id"],
                 title=doc["title"],
                 owner_id=doc["owner_id"],
                 invite_link=doc["invite_link"],
-                language=doc.get("language", "en"),
                 chat_type=doc.get("chat_type", "group"),
+                language=doc.get("language", "en"),
+                settings=settings,
                 member_count=doc.get("member_count", 0),
                 is_active=doc.get("is_active", True),
                 status=doc.get("status", "pending")
@@ -129,6 +135,7 @@ class MongoGroupRepository(GroupRepository):
             invite_link=doc["invite_link"],
             language=doc.get("language", "en"),
             settings=settings,
+            chat_type=doc.get("chat_type", "group"),
             member_count=doc.get("member_count", 0),
             joined_via_bot_count=doc.get("joined_via_bot_count", 0),
             is_active=doc.get("is_active", True),
