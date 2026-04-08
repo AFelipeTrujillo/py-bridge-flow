@@ -9,6 +9,7 @@ from telegram.ext import ChatJoinRequestHandler, CommandHandler
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from src.Application.UseCase.UpdateUserPreference import UpdateUserPreference
+from src.Infrastructure.Delivery.Telegram.Handlers.AdminHandler import AdminHandler
 # Persistence
 from src.Infrastructure.Persistence.MongoGroupRepository import MongoGroupRepository
 from src.Infrastructure.Persistence.MongoUserRepository import MongoUserRepository
@@ -57,6 +58,7 @@ def main():
     status_use_case         = GetSystemStatus(group_repo)
     welcome_use_case        = GetWelcomeMessage()
     update_user_use_case    = UpdateUserPreference(user_repo)
+    daily_broadcast_use_case = DailyBroadcast(group_repo)
 
     # Instantiate Handlers (Delivery Layer)
     member_logic        = MemberHandler(group_repo)
@@ -119,26 +121,13 @@ def main():
         pattern=r"^main_"
     ))
 
-    """
+    admin_handler = AdminHandler(
+        broadcast_use_case=daily_broadcast_use_case,
+        group_repo=group_repo,
+        admin_id=settings.SUPER_ADMIN_ID
+    )
+    application.add_handler(CommandHandler("force_broadcast", admin_handler.force_broadcast))
 
-    # 2. Maneja la moderación del ADMIN (Ej: admin_appr_123)
-    application.add_handler(CallbackQueryHandler(
-        callback_logic.handle_admin_moderation,
-        pattern=r"^admin_"
-    ))
-
-    # 3. El botón de comprobación de estado
-    application.add_handler(CallbackQueryHandler(
-        check_status_logic.handle,
-        pattern=r"^check_admin_status$"
-    ))
-
-    # 4. Selección de idioma inicial (si usas 'lang_')
-    application.add_handler(CallbackQueryHandler(
-        callback_logic.handle_language_selection,
-        pattern=r"^lang_"
-    ))
-"""
     # 6. Start the Bot
     logger.info("Bot started and listening for updates...")
     application.run_polling()

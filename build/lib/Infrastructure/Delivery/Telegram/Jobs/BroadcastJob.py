@@ -1,5 +1,6 @@
 import logging
 from datetime import time
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from src.Application.UseCase.DailyBroadcast import DailyBroadcast
 from src.Domain.Repository.GroupRepository import GroupRepository  # Importante para buscar destinos
@@ -24,24 +25,38 @@ class BroadcastJob:
             logger.warning("No active groups found to receive the broadcast.")
             return
 
+        bot_username = (await context.bot.get_me()).username
+        start_url = f"https://t.me/{bot_username}?start=setup"
+
         msg_es = await self.use_case.execute(lang="es")
         msg_en = await self.use_case.execute(lang="en")
 
-        for target in targets:
-            message_text = msg_es if target.language == "es" else msg_en
+        btn_es = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🚀 Registra tu grupo", url=start_url)
+        ]])
 
-            if not message_text:
-                continue
+        btn_en = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🚀 Register your group", url=start_url)
+        ]])
+
+        for target in targets:
+            if target.language == "es":
+                text = msg_es
+                reply_markup = btn_es
+            else:
+                text = msg_en
+                reply_markup = btn_en
 
             try:
                 await context.bot.send_message(
                     chat_id=target.chat_id,
-                    text=message_text,
+                    text=text,
+                    reply_markup=reply_markup,
                     parse_mode="Markdown",
                     disable_web_page_preview=True
                 )
             except Exception as e:
-                logger.error(f"Failed to send broadcast to {target.chat_id}: {e}")
+                logger.error(f"Error enviando broadcast: {e}")
 
         logger.info("Daily broadcast completed successfully.")
 

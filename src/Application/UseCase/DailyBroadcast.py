@@ -12,13 +12,12 @@ class DailyBroadcast:
         groups = await self.group_repo.find_all_approved()
         if not groups: return None
 
-
         if lang == "es":
             h = "🌟 **¡RESUMEN DIARIO!** 🌟\n_Toca el nombre para unirte_\n\n---\n"
-            f = "\n---\n📢 *Canales* | 👥 *Grupos*\n🚀 ¿Quieres aparecer aquí? ¡Escríbeme!"
+            f = "\n---\n📢 *Canales* | 👥 *Grupos*"
         else:
             h = "🌟 **DAILY SUMMARY!** 🌟\n_Tap the name to join_\n\n---\n"
-            f = "\n---\n📢 *Channels* | 👥 *Groups*\n🚀 Want to be here? Write to me!"
+            f = "\n---\n📢 *Channels* | 👥 *Groups*"  
 
 
         body = ""
