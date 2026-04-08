@@ -25,7 +25,8 @@ class MongoGroupRepository(GroupRepository):
             "language": group.language,
             "member_count": group.member_count,
             "joined_via_bot_count": group.joined_via_bot_count,
-            "is_active": group.is_active,
+            "is_active": bool(group.is_active),
+            "status": group.status,
             "created_at": group.created_at,
             "settings": {
                 "require_approval": group.settings.require_approval,
@@ -81,6 +82,13 @@ class MongoGroupRepository(GroupRepository):
                 settings=LinkSettings(**doc["settings"]) if "settings" in doc else LinkSettings()
             ))
         return groups
+
+    async def update_status(self, chat_id: int, new_status: str):
+        """Actualiza el estado de moderación de un grupo."""
+        await self.collection.update_one(
+            {"chat_id": chat_id},
+            {"$set": {"status": new_status}}
+        )
 
     def _map_to_entity(self, doc: dict) -> Group:
         """Internal helper to convert a Mongo document to a Domain Entity."""

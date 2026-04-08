@@ -13,7 +13,8 @@ class Group:
     language: str  # 'en' for English, 'es' for Spanish
     member_count: int = 0
     joined_via_bot_count: int = 0
-    is_active: bool = True
+    is_active: bool = True,
+    status: str = "pending"
     created_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)  # Use timezone-aware UTC
     )

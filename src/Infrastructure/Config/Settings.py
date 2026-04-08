@@ -21,7 +21,7 @@ class Settings:
     # Defaulting to 12:00 PM if not specified
     BROADCAST_TIME_UTC: str = os.getenv("BROADCAST_TIME_UTC", "12:00")
 
-    ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))
+    SUPER_ADMIN_ID: int = int(os.getenv("SUPER_ADMIN_ID", "0"))
 
     def __post_init__(self):
         """Validate that essential variables are present."""

@@ -61,7 +61,7 @@ def main():
     # Instantiate Handlers (Delivery Layer)
     member_logic        = MemberHandler(group_repo)
     reg_handler_logic   = RegistrationHandler(register_use_case, user_repo)
-    callback_logic      = CallbackHandler(register_use_case)
+    callback_logic      = CallbackHandler(register_use_case, user_repo, group_repo, settings.SUPER_ADMIN_ID)
     broadcast_job_logic = BroadcastJob(broadcast_use_case)
     status_logic        = StatusHandler(status_use_case)
     start_logic         = StartHandler(welcome_use_case, update_user_use_case)
@@ -104,10 +104,35 @@ def main():
 
     # Handle Approval selection buttons
     application.add_handler(CallbackQueryHandler(
-        callback_logic.handle_approval_selection,
+        callback_logic.handle_user_approval_selection,
         pattern=r"^appr_"
     ))
 
+    application.add_handler(CallbackQueryHandler(
+        callback_logic.handle_admin_moderation,
+        pattern=r"^admin_"
+    ))
+
+    """
+
+    # 2. Maneja la moderación del ADMIN (Ej: admin_appr_123)
+    application.add_handler(CallbackQueryHandler(
+        callback_logic.handle_admin_moderation,
+        pattern=r"^admin_"
+    ))
+
+    # 3. El botón de comprobación de estado
+    application.add_handler(CallbackQueryHandler(
+        check_status_logic.handle,
+        pattern=r"^check_admin_status$"
+    ))
+
+    # 4. Selección de idioma inicial (si usas 'lang_')
+    application.add_handler(CallbackQueryHandler(
+        callback_logic.handle_language_selection,
+        pattern=r"^lang_"
+    ))
+"""
     # 6. Start the Bot
     logger.info("Bot started and listening for updates...")
     application.run_polling()
