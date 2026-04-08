@@ -1,43 +1,30 @@
-import asyncio
-import logging
-from typing import List
-from src.Domain.Repository.GroupRepository import GroupRepository
-from src.Domain.Entity.Group import Group
-
-logger = logging.getLogger(__name__)
-
 class DailyBroadcast:
-    """UseCase to handle the daily distribution of group links."""
+    def __init__(self, group_repo):
+        self.group_repo = group_repo
 
-    def __init__(self, repository: GroupRepository):
-        self.repository = repository
+    def _format_count(self, count: int) -> str:
+        if count < 1000: return str(count)
+        if count < 10000: return f"+{count / 1000:.1f}K"
+        return f"+{int(count / 1000)}K"
 
-    async def execute(self, bot) -> None:
-        groups = await self.repository.get_all_active()
-        if not groups:
-            return
+    async def execute(self, lang: str):
 
-        # Prepare messages by language
-        messages = {
-            "en": "🌟 **Join our partner groups!**\n\n",
-            "es": "🌟 **¡Únete a nuestros grupos amigos!**\n\n"
-        }
+        groups = await self.group_repo.find_all_approved()
+        if not groups: return None
 
-        for group in groups:
-            lang = group.language if group.language in messages else "en"
-            messages[lang] += f"• [{group.title}]({group.invite_link})\n"
 
-        # Send to each group
-        for target_group in groups:
-            try:
-                content = messages.get(target_group.language, messages["en"])
-                await bot.send_message(
-                    chat_id=target_group.chat_id,
-                    text=content,
-                    parse_mode="Markdown",
-                    disable_web_page_preview=True
-                )
-                # Anti-spam delay to respect Telegram Rate Limits
-                await asyncio.sleep(0.05)
-            except Exception as e:
-                logger.error(f"Failed to send broadcast to {target_group.chat_id}: {e}")
+        if lang == "es":
+            h = "🌟 **¡RESUMEN DIARIO!** 🌟\n_Toca el nombre para unirte_\n\n---\n"
+            f = "\n---\n📢 *Canales* | 👥 *Grupos*\n🚀 ¿Quieres aparecer aquí? ¡Escríbeme!"
+        else:
+            h = "🌟 **DAILY SUMMARY!** 🌟\n_Tap the name to join_\n\n---\n"
+            f = "\n---\n📢 *Channels* | 👥 *Groups*\n🚀 Want to be here? Write to me!"
+
+
+        body = ""
+        for g in groups:
+            members = self._format_count(g.member_count)
+            icon = "📢" if g.chat_type == "channel" else "👥"
+            body += f"🔹 [{g.title}]({g.invite_link})  `{members}`  {icon}\n"
+
+        return h + body + f

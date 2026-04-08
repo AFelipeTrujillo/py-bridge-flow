@@ -2,6 +2,7 @@ import logging
 from datetime import time
 from telegram.ext import ContextTypes
 from src.Application.UseCase.DailyBroadcast import DailyBroadcast
+from src.Domain.Repository.GroupRepository import GroupRepository  # Importante para buscar destinos
 
 logger = logging.getLogger(__name__)
 
@@ -9,15 +10,38 @@ logger = logging.getLogger(__name__)
 class BroadcastJob:
     """Manager for scheduled background tasks."""
 
-    def __init__(self, broadcast_use_case: DailyBroadcast):
+    def __init__(self, broadcast_use_case: DailyBroadcast, group_repo: GroupRepository):
         self.use_case = broadcast_use_case
+        self.group_repo = group_repo  # Necesitamos el repo para saber a qué grupos enviar
 
     async def run_daily_broadcast(self, context: ContextTypes.DEFAULT_TYPE):
-        """Job callback that triggers the Use Case."""
+        """Job callback that triggers the Use Case per language."""
         logger.info("Starting scheduled daily broadcast...")
 
-        # We pass the bot instance to the Use Case to perform the sending logic
-        await self.use_case.execute(context.bot)
+        targets = await self.group_repo.get_all_active()
+
+        if not targets:
+            logger.warning("No active groups found to receive the broadcast.")
+            return
+
+        msg_es = await self.use_case.execute(lang="es")
+        msg_en = await self.use_case.execute(lang="en")
+
+        for target in targets:
+            message_text = msg_es if target.language == "es" else msg_en
+
+            if not message_text:
+                continue
+
+            try:
+                await context.bot.send_message(
+                    chat_id=target.chat_id,
+                    text=message_text,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True
+                )
+            except Exception as e:
+                logger.error(f"Failed to send broadcast to {target.chat_id}: {e}")
 
         logger.info("Daily broadcast completed successfully.")
 

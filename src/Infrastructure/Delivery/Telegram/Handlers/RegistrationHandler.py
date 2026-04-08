@@ -54,6 +54,11 @@ class RegistrationHandler:
                 logger.warning(f"No se pudo exportar el link, intentando crear uno: {e}")
                 return
 
+        try:
+            current_count = await context.bot.get_chat_member_count(chat.id)
+        except Exception:
+            current_count = 0
+
         # 4. Almacenar datos temporales para el paso final (Aprobación)
         # Guardamos el tipo de chat (channel/group/supergroup)
         context.user_data[f"reg_{chat.id}"] = {
@@ -61,9 +66,9 @@ class RegistrationHandler:
             "title": chat.title,
             "owner_id": user_who_added.id,
             "language": user_lang,
+            "member_count": current_count,
             "chat_type": chat.type,
-            "invite_link": invite_link,
-            "member_count": await chat.get_member_count() if chat.type != "channel" else 0
+            "invite_link": invite_link
         }
 
         # 5. Configuración de idioma para la pregunta de aprobación

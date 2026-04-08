@@ -217,40 +217,57 @@ class CallbackHandler:
         await query.answer()
 
         lang = context.user_data.get("lang", "en")
-
         approved_groups = await self.group_repo.find_all_approved()
 
+        # Traducciones y Textos
         if lang == "es":
-            empty_text = "Por ahora no hay grupos aprobados en el directorio. ¡Vuelve pronto!"
-            header_text = "**Directorio de Grupos Aprobados**\n\n"
-            join_text = "Unirse aquí"
+            empty_text = "😔 Por ahora no hay grupos aprobados. ¡Vuelve pronto!"
+            header_text = "📂 **DIRECTORIO DE COMUNIDADES**\n_Toca el nombre para unirte_\n\n---\n"
+            footer_text = "\n---\n**Simbología:** 📢 Canal | 👥 Grupo"
             back_btn_text = "⬅️ Volver"
         else:
-            empty_text = "There are no approved groups in the directory yet. Check back soon!"
-            header_text = "📂 **Approved Groups Directory**\n\n"
-            join_text = "Join here"
+            empty_text = "😔 No approved groups yet. Check back soon!"
+            header_text = "📂 **COMMUNITY DIRECTORY**\n_Tap the name to join_\n\n---\n"
+            footer_text = "\n---\n**Legend:** 📢 Channel | 👥 Group"
             back_btn_text = "⬅️ Back"
 
         keyboard = [[InlineKeyboardButton(back_btn_text, callback_data="main_menu")]]
 
         if not approved_groups:
-            await query.edit_message_text(
-                text=empty_text,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                parse_mode="Markdown"
-            )
+            await query.edit_message_text(text=empty_text, reply_markup=InlineKeyboardMarkup(keyboard))
             return
 
         report = header_text
+
         for g in approved_groups:
-            report += f"🔹 **{g.title}** [{join_text}]({g.invite_link})\n\n"
+            # 1. Formatear el número de miembros
+            members = self.format_member_count(g.member_count)
+
+            # 2. Determinar el emoji según el tipo de chat
+            # Asumimos que g.chat_type puede ser 'channel', 'supergroup' o 'group'
+            icon = "📢" if g.chat_type == "channel" else "👥"
+
+            # 3. Construir la línea: Emoji + [Nombre](Link) + Miembros + Icono Tipo
+            # El uso de ` ` (code) ayuda a que los números se vean alineados
+            report += f"🔹 [{g.title}]({g.invite_link})  `{members}`  {icon}\n"
+
+        report += footer_text
 
         await query.edit_message_text(
             text=report,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
-            disable_web_page_preview=True
+            disable_web_page_preview=True  # Crucial para que no se llene de vistas previas
         )
+
+    def format_member_count(self, count: int) -> str:
+        if count < 1000:
+            return str(count)
+        if count < 10000:
+            # Un decimal para miles bajos (ej: 1.3K)
+            return f"+{count / 1000:.1f}K"
+        # Sin decimales para números muy grandes (ej: +12K)
+        return f"+{int(count / 1000)}K"
 
     async def _show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
