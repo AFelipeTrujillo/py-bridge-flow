@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from telegram.ext import ApplicationBuilder, ChatMemberHandler, CallbackQueryHandler
 from telegram.ext import ChatJoinRequestHandler, CommandHandler
+from telegram.ext import MessageHandler, filters
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from src.Application.UseCase.UpdateUserPreference import UpdateUserPreference
@@ -30,8 +31,8 @@ from src.Infrastructure.Delivery.Telegram.Handlers.MemberHandler import MemberHa
 from src.Infrastructure.Delivery.Telegram.Handlers.StatusHandler import StatusHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.StartHandler import StartHandler
 from src.Infrastructure.Delivery.Telegram.Handlers.CheckStatusHandler import CheckStatusHandler
-
-
+from src.Infrastructure.Delivery.Telegram.Handlers.CommandHandler import CommandHandler as BotCommandHandler
+from src.Infrastructure.Delivery.Telegram.Handlers.AutoRegistrationHandler import AutoRegistrationHandler
 
 # Configure Logging
 logging.basicConfig(
@@ -68,6 +69,8 @@ def main():
     status_logic        = StatusHandler(status_use_case)
     start_logic         = StartHandler(welcome_use_case, update_user_use_case)
     check_status_logic  = CheckStatusHandler(group_repo)
+    cmd_handler         = BotCommandHandler(register_group_use_case=register_use_case)
+    auto_reg_handler    = AutoRegistrationHandler(group_repo, register_use_case, settings.SUPER_ADMIN_ID)
 
     # 3. Bot Initialization
     application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
@@ -127,6 +130,14 @@ def main():
         admin_id=settings.SUPER_ADMIN_ID
     )
     application.add_handler(CommandHandler("force_broadcast", admin_handler.force_broadcast))
+
+    application.add_handler(
+        MessageHandler(
+            filters.ChatType.GROUPS & (~filters.COMMAND),
+            auto_reg_handler.check_and_register
+        ),
+        group=-1
+    )
 
     # 6. Start the Bot
     logger.info("Bot started and listening for updates...")
