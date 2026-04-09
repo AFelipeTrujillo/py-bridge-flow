@@ -133,7 +133,7 @@ def main():
 
     application.add_handler(
         MessageHandler(
-            filters.ChatType.GROUPS & (~filters.COMMAND),
+            (filters.ChatType.GROUPS | filters.ChatType.CHANNEL) & (~filters.COMMAND),
             auto_reg_handler.check_and_register
         ),
         group=-1
